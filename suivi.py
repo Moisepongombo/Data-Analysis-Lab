@@ -61,11 +61,13 @@ def actualiser(sortie, adaptateur, frais):
     observations = observations.set_index("observation_date").sort_index()
     bilan = {"collecte_le": maintenant.isoformat(), "fred": {}, "actualites": [], "erreurs": {}}
     for code, horizon in SERIES.items():
-        serie = observations[code].dropna().tail(96)
-        if len(serie) != 96 or not pd.PeriodIndex(serie.index, freq="M").equals(
-            pd.period_range(serie.index[0], periods=96, freq="M")
-        ):
-            raise ValueError(f"Contexte mensuel incomplet : {code}")
+        disponible = pd.to_numeric(observations[code], errors="coerce").dropna()
+        if len(disponible) < 2:
+            bilan["erreurs"][code] = "Historique mensuel insuffisant"
+            continue
+        dates = pd.date_range(end=disponible.index[-1], periods=96, freq="MS")
+        # Chronos-2 masque les NaN et conserve la position de chaque mois.
+        serie = disponible.reindex(dates)
         modele = base
         if code == "INDPRO" and adaptateur:
             modele = Chronos2Pipeline.from_pretrained(str(adaptateur), device_map="cpu")
@@ -73,7 +75,10 @@ def actualiser(sortie, adaptateur, frais):
         bilan["fred"][code] = {
             "source": FRED + "?id=" + code,
             "modele": "chronos2_lora" if modele is not base else "chronos2",
-            "observations": {d.strftime("%Y-%m"): float(v) for d, v in serie.items()},
+            "observations": {
+                d.strftime("%Y-%m"): None if pd.isna(v) else float(v)
+                for d, v in serie.items()
+            },
             "previsions": [
                 {"mois": str(d), "q10": q[0], "q50": q[1], "q90": q[2]}
                 for d, q in zip(mois, quantiles(modele, serie, horizon))
