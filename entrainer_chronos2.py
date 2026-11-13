@@ -30,11 +30,12 @@ def comparer(base, adapte, valeurs, debut, fin, horizon, identifiant, periode):
     origines = range(debut, fin - horizon + 1)
     contextes = [valeurs[max(0, i - CONTEXTE):i] for i in origines]
     reels = np.stack([valeurs[i:i + horizon] for i in origines])
+    dernier = np.asarray([valeurs[i - 1] for i in origines])
+    predictions = {"reference": np.repeat(dernier[:, None], horizon, axis=1)}
     if identifiant == "INDPRO":
-        reference = np.stack([valeurs[i - 12:i - 12 + horizon] for i in origines])
-    else:
-        reference = np.repeat(valeurs[debut - 1:fin - horizon, None], horizon, axis=1)
-    predictions = {"reference": reference}
+        predictions["reference_saisonniere"] = np.stack(
+            [valeurs[i - 12:i - 12 + horizon] for i in origines]
+        )
     for nom, modele in (("chronos2", base), ("chronos2_lora", adapte)):
         quantiles, _ = modele.predict_quantiles(
             contextes,

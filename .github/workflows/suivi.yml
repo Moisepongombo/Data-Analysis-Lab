@@ -1,0 +1,28 @@
+name: Suivi économique quotidien
+on:
+  schedule:
+    - cron: '23 13 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: suivi-economique
+jobs:
+  collecte:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python suivi.py
+      - name: Archiver la collecte
+        run: |
+          git add journal/
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Archiver les données et prévisions du jour"
+          git push
